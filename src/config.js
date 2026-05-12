@@ -9,5 +9,9 @@ const required = (key) => {
 export const config = {
   port: parseInt(process.env.PORT ?? '3000', 10),
   databaseUrl: required('DATABASE_URL'),
+  jwtSecret: required('JWT_SECRET'),
+  adminUsername: required('ADMIN_USERNAME'),
+  adminPassword: required('ADMIN_PASSWORD'),
+  corsOrigin: required('CORS_ORIGIN'),
   nodeEnv: process.env.NODE_ENV ?? 'development',
 }
