@@ -4,58 +4,55 @@ import { QUEUE_NAME } from '../queue/boss.js'
 export async function messagesRoute(fastify) {
   fastify.get('/messages', async (request, reply) => {
     const limit = Math.min(parseInt(request.query.limit ?? '20', 10), 100)
-    const cursor = request.query.cursor
+    const page = Math.max(parseInt(request.query.page ?? '1', 10), 1)
+    const offset = (page - 1) * limit
 
-    const { rows } = cursor
-      ? await pool.query(
-          `SELECT id, message_id, sender, conversation_id, timestamp, payload, created_at
-           FROM messages
-           WHERE created_at < $1
-           ORDER BY created_at DESC
-           LIMIT $2`,
-          [cursor, limit + 1]
-        )
-      : await pool.query(
-          `SELECT id, message_id, sender, conversation_id, timestamp, payload, created_at
-           FROM messages
-           ORDER BY created_at DESC
-           LIMIT $1`,
-          [limit + 1]
-        )
+    const [{ rows }, { rows: countRows }] = await Promise.all([
+      pool.query(
+        `SELECT id, message_id, sender, conversation_id, timestamp, payload, created_at
+         FROM messages
+         ORDER BY created_at DESC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      ),
+      pool.query('SELECT COUNT(*) AS total FROM messages'),
+    ])
 
-    const hasMore = rows.length > limit
-    if (hasMore) rows.pop()
+    const total = parseInt(countRows[0].total, 10)
+    const totalPages = Math.ceil(total / limit)
 
     return reply.send({
       data: rows,
-      nextCursor: hasMore ? rows[rows.length - 1].created_at.toISOString() : null,
+      total,
+      page,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
     })
   })
 
   fastify.get('/messages/failed', async (request, reply) => {
     const limit = Math.min(parseInt(request.query.limit ?? '20', 10), 100)
-    const cursor = request.query.cursor
+    const page = Math.max(parseInt(request.query.page ?? '1', 10), 1)
+    const offset = (page - 1) * limit
 
-    const { rows } = cursor
-      ? await pool.query(
-          `SELECT id, name, data, output, created_on, started_on, completed_on
-           FROM pgboss.job
-           WHERE name = $1 AND state = 'failed' AND created_on < $2
-           ORDER BY created_on DESC
-           LIMIT $3`,
-          [QUEUE_NAME, cursor, limit + 1]
-        )
-      : await pool.query(
-          `SELECT id, name, data, output, created_on, started_on, completed_on
-           FROM pgboss.job
-           WHERE name = $1 AND state = 'failed'
-           ORDER BY created_on DESC
-           LIMIT $2`,
-          [QUEUE_NAME, limit + 1]
-        )
+    const [{ rows }, { rows: countRows }] = await Promise.all([
+      pool.query(
+        `SELECT id, name, data, output, created_on, started_on, completed_on
+         FROM pgboss.job
+         WHERE name = $1 AND state = 'failed'
+         ORDER BY created_on DESC
+         LIMIT $2 OFFSET $3`,
+        [QUEUE_NAME, limit, offset]
+      ),
+      pool.query(
+        `SELECT COUNT(*) AS total FROM pgboss.job WHERE name = $1 AND state = 'failed'`,
+        [QUEUE_NAME]
+      ),
+    ])
 
-    const hasMore = rows.length > limit
-    if (hasMore) rows.pop()
+    const total = parseInt(countRows[0].total, 10)
+    const totalPages = Math.ceil(total / limit)
 
     return reply.send({
       data: rows.map((row) => ({
@@ -68,7 +65,11 @@ export async function messagesRoute(fastify) {
         createdAt: row.created_on,
         error: row.output?.message,
       })),
-      nextCursor: hasMore ? rows[rows.length - 1].created_on.toISOString() : null,
+      total,
+      page,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
     })
   })
 }
