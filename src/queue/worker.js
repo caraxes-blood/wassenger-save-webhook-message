@@ -24,6 +24,6 @@ export function registerWorker(boss, pool) {
   return boss.work(
     'wassenger.message',
     { teamSize: 5, teamConcurrency: 5 },
-    (job) => processMessage(job, pool)
+    (jobs) => Promise.all(jobs.map((job) => processMessage(job, pool)))
   )
 }
