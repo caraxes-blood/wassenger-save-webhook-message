@@ -9,7 +9,5 @@ const required = (key) => {
 export const config = {
   port: parseInt(process.env.PORT ?? '3000', 10),
   databaseUrl: required('DATABASE_URL'),
-  webhookSecret: required('WASSENGER_WEBHOOK_SECRET'),
-  adminToken: required('ADMIN_TOKEN'),
   nodeEnv: process.env.NODE_ENV ?? 'development',
 }
