@@ -9,7 +9,7 @@ export async function webhookRoute(fastify) {
     }
 
     const { data } = payload
-    await boss.sendOnce(QUEUE_NAME, data.id, { data, rawPayload: payload })
+    await boss.send(QUEUE_NAME, { data, rawPayload: payload }, { singletonKey: data.id })
 
     return reply.send({ ok: true })
   })

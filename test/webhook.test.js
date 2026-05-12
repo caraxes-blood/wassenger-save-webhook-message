@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import Fastify from 'fastify'
 
-const mockSendOnce = vi.fn().mockResolvedValue('job-id-123')
+const mockSend = vi.fn().mockResolvedValue('job-id-123')
 
 vi.mock('../src/queue/boss.js', () => ({
-  boss: { sendOnce: mockSendOnce },
+  boss: { send: mockSend },
   QUEUE_NAME: 'wassenger.message',
 }))
 
@@ -49,10 +49,10 @@ describe('POST /webhook', () => {
 
     expect(response.statusCode).toBe(200)
     expect(JSON.parse(response.body)).toEqual({ ok: true })
-    expect(mockSendOnce).toHaveBeenCalledWith(
+    expect(mockSend).toHaveBeenCalledWith(
       'wassenger.message',
-      'msg_1',
-      expect.objectContaining({ data: payload.data, rawPayload: payload })
+      expect.objectContaining({ data: payload.data, rawPayload: payload }),
+      { singletonKey: 'msg_1' }
     )
   })
 
@@ -67,6 +67,6 @@ describe('POST /webhook', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    expect(mockSendOnce).not.toHaveBeenCalled()
+    expect(mockSend).not.toHaveBeenCalled()
   })
 })
