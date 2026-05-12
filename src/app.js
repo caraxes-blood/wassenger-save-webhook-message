@@ -1,13 +1,14 @@
 import { config } from './config.js'
 import { pool } from './db/client.js'
 import { runMigrations } from './db/migrate.js'
-import { boss } from './queue/boss.js'
+import { boss, QUEUE_NAME } from './queue/boss.js'
 import { registerWorker } from './queue/worker.js'
 import { buildServer } from './server.js'
 
 async function main() {
   await runMigrations(pool)
   await boss.start()
+  await boss.createQueue(QUEUE_NAME)
   registerWorker(boss, pool)
 
   const server = buildServer()
