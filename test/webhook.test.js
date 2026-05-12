@@ -28,15 +28,15 @@ async function buildApp() {
 describe('POST /webhook', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('returns 200 and enqueues message.created events with valid secret', async () => {
+  it('returns 200 and enqueues message:in:new events with valid secret', async () => {
     const app = await buildApp()
     const payload = {
-      event: 'message.created',
+      event: 'message:in:new',
       data: {
         id: 'msg_1',
-        from: '+1234567890',
-        conversationId: 'conv_1',
-        timestamp: '2026-05-12T10:00:00Z',
+        fromNumber: '+1234567890',
+        chat: { id: 'conv_1' },
+        timestamp: 1778584656,
       },
     }
 
@@ -56,14 +56,14 @@ describe('POST /webhook', () => {
     )
   })
 
-  it('returns 200 but does NOT enqueue non-message.created events', async () => {
+  it('returns 200 but does NOT enqueue non-message:in:new events', async () => {
     const app = await buildApp()
 
     const response = await app.inject({
       method: 'POST',
       url: '/webhook',
       headers: { 'x-api-key': 'test-secret', 'content-type': 'application/json' },
-      body: JSON.stringify({ event: 'message.updated', data: {} }),
+      body: JSON.stringify({ event: 'message:out:new', data: {} }),
     })
 
     expect(response.statusCode).toBe(200)
@@ -77,7 +77,7 @@ describe('POST /webhook', () => {
       method: 'POST',
       url: '/webhook',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ event: 'message.created', data: {} }),
+      body: JSON.stringify({ event: 'message:in:new', data: {} }),
     })
 
     expect(response.statusCode).toBe(401)
@@ -90,7 +90,7 @@ describe('POST /webhook', () => {
       method: 'POST',
       url: '/webhook',
       headers: { 'x-api-key': 'wrong-secret', 'content-type': 'application/json' },
-      body: JSON.stringify({ event: 'message.created', data: {} }),
+      body: JSON.stringify({ event: 'message:in:new', data: {} }),
     })
 
     expect(response.statusCode).toBe(401)

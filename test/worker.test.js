@@ -11,11 +11,11 @@ describe('processMessage', () => {
       data: {
         data: {
           id: 'msg_abc123',
-          from: '+1234567890',
-          conversationId: 'conv_xyz',
-          timestamp: '2026-05-12T10:00:00Z',
+          fromNumber: '+23206295535687',
+          chat: { id: '23206295535687@lid' },
+          timestamp: 1778584656,
         },
-        rawPayload: { event: 'message.created', data: { id: 'msg_abc123' } },
+        rawPayload: { event: 'message:in:new', data: { id: 'msg_abc123' } },
       },
     }
 
@@ -25,8 +25,8 @@ describe('processMessage', () => {
     const [sql, params] = mockQuery.mock.calls[0]
     expect(sql).toContain('INSERT INTO messages')
     expect(params[0]).toBe('msg_abc123')
-    expect(params[1]).toBe('+1234567890')
-    expect(params[2]).toBe('conv_xyz')
+    expect(params[1]).toBe('+23206295535687')
+    expect(params[2]).toBe('23206295535687@lid')
   })
 
   it('silently skips duplicate message_id (Postgres error code 23505)', async () => {
@@ -37,7 +37,7 @@ describe('processMessage', () => {
 
     const job = {
       data: {
-        data: { id: 'dup_id', from: '+1', conversationId: null, timestamp: '2026-05-12T10:00:00Z' },
+        data: { id: 'dup_id', fromNumber: '+1', chat: null, timestamp: 1778584656 },
         rawPayload: {},
       },
     }
@@ -53,7 +53,7 @@ describe('processMessage', () => {
 
     const job = {
       data: {
-        data: { id: 'msg_2', from: '+1', conversationId: null, timestamp: '2026-05-12T10:00:00Z' },
+        data: { id: 'msg_2', fromNumber: '+1', chat: null, timestamp: 1778584656 },
         rawPayload: {},
       },
     }

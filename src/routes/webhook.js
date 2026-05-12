@@ -5,7 +5,7 @@ export async function webhookRoute(fastify) {
   fastify.post('/webhook', { preHandler: validateWebhookSecret }, async (request, reply) => {
     const payload = request.body
 
-    if (payload?.event !== 'message.created') {
+    if (payload?.event !== 'message:in:new') {
       return reply.send({ ok: true })
     }
 
