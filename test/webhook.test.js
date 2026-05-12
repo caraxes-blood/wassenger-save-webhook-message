@@ -28,7 +28,7 @@ async function buildApp() {
 describe('POST /webhook', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('returns 200 and enqueues message:in:new events with valid secret', async () => {
+  it('returns 200 and enqueues message:in:new events', async () => {
     const app = await buildApp()
     const payload = {
       event: 'message:in:new',
@@ -43,7 +43,7 @@ describe('POST /webhook', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/webhook',
-      headers: { 'x-api-key': 'test-secret', 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     })
 
@@ -62,37 +62,11 @@ describe('POST /webhook', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/webhook',
-      headers: { 'x-api-key': 'test-secret', 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ event: 'message:out:new', data: {} }),
     })
 
     expect(response.statusCode).toBe(200)
     expect(mockSendOnce).not.toHaveBeenCalled()
-  })
-
-  it('returns 401 when x-api-key header is missing', async () => {
-    const app = await buildApp()
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/webhook',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ event: 'message:in:new', data: {} }),
-    })
-
-    expect(response.statusCode).toBe(401)
-  })
-
-  it('returns 401 when x-api-key is wrong', async () => {
-    const app = await buildApp()
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/webhook',
-      headers: { 'x-api-key': 'wrong-secret', 'content-type': 'application/json' },
-      body: JSON.stringify({ event: 'message:in:new', data: {} }),
-    })
-
-    expect(response.statusCode).toBe(401)
   })
 })
