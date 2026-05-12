@@ -9,7 +9,7 @@ export async function processMessage(job, pool) {
   try {
     await pool.query(INSERT_SQL, [
       data.id,
-      data.fromNumber,
+      data.fromNumber ?? data.from,
       data.chat?.id ?? null,
       new Date(data.timestamp * 1000),
       JSON.stringify(rawPayload),
