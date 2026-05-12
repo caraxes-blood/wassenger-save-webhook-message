@@ -1,0 +1,20 @@
+import { config } from './config.js'
+import { pool } from './db/client.js'
+import { runMigrations } from './db/migrate.js'
+import { boss } from './queue/boss.js'
+import { registerWorker } from './queue/worker.js'
+import { buildServer } from './server.js'
+
+async function main() {
+  await runMigrations(pool)
+  await boss.start()
+  registerWorker(boss, pool)
+
+  const server = buildServer()
+  await server.listen({ port: config.port, host: '0.0.0.0' })
+}
+
+main().catch((err) => {
+  console.error(err)
+  process.exit(1)
+})
