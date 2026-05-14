@@ -7,6 +7,7 @@ import { webhookRoute } from './routes/webhook.js'
 import { adminRoute } from './routes/admin.js'
 import { authRoute } from './routes/auth.js'
 import { messagesRoute } from './routes/messages.js'
+import { cleanedMessagesRoute } from './routes/cleanedMessages.js'
 
 export function buildServer() {
   const fastify = Fastify({ logger: true, trustProxy: true })
@@ -37,6 +38,7 @@ export function buildServer() {
     })
     instance.register(adminRoute)
     instance.register(messagesRoute)
+    instance.register(cleanedMessagesRoute)
   })
 
   return fastify
