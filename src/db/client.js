@@ -1,6 +1,11 @@
-import pg from 'pg'
-import { config } from '../config.js'
+import pg from "pg";
+import { config } from "../config.js";
 
-const { Pool } = pg
+const { Pool } = pg;
 
-export const pool = new Pool({ connectionString: config.databaseUrl })
+export const pool = new Pool({
+  connectionString: config.databaseUrl,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
