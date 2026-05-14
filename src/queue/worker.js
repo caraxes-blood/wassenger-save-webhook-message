@@ -7,7 +7,7 @@ const INSERT_SQL = `
 export function classifyRelevance(data) {
   if (data.flow !== "inbound")
     return { is_relevant: false, skip_reason: "outbound" };
-  if (data.type !== "text" || data.type !== "image")
+  if (data.type !== "text" && data.type !== "image")
     return { is_relevant: false, skip_reason: "non_text_or_image" };
   if (data.meta?.isNotification)
     return { is_relevant: false, skip_reason: "notification" };
