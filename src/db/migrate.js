@@ -52,6 +52,9 @@ export async function runMigrations(pool) {
     CREATE INDEX IF NOT EXISTS idx_cleaned_messages_message_id ON cleaned_messages(message_id);
     CREATE INDEX IF NOT EXISTS idx_cleaned_messages_intent     ON cleaned_messages(intent);
     CREATE INDEX IF NOT EXISTS idx_cleaned_messages_timestamp  ON cleaned_messages(timestamp);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_cleaned_messages_message_id
+      ON cleaned_messages (message_id);
   `)
 
   // deals: rule-based now (source='rules'), AI pipeline later (source='ai')
@@ -80,5 +83,8 @@ export async function runMigrations(pool) {
     CREATE INDEX IF NOT EXISTS idx_deals_intent    ON deals(intent);
     CREATE INDEX IF NOT EXISTS idx_deals_source    ON deals(source);
     CREATE INDEX IF NOT EXISTS idx_deals_sender    ON deals(sender);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_deals_message_id_source
+      ON deals (message_id, source);
   `)
 }
