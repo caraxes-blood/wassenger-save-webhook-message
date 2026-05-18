@@ -57,6 +57,31 @@ export async function runMigrations(pool) {
       ON cleaned_messages (message_id);
   `)
 
+  // groups: WhatsApp group chats synced from Wassenger API
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS groups (
+      wid            TEXT        PRIMARY KEY,
+      name           TEXT,
+      device_id      TEXT,
+      last_synced_at TIMESTAMPTZ
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+      phone      TEXT        PRIMARY KEY,
+      name       TEXT,
+      wid        TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS group_members (
+      group_wid  TEXT    NOT NULL REFERENCES groups(wid),
+      user_phone TEXT    NOT NULL REFERENCES users(phone),
+      is_admin   BOOLEAN NOT NULL DEFAULT false,
+      PRIMARY KEY (group_wid, user_phone)
+    );
+  `)
+
   // deals: rule-based now (source='rules'), AI pipeline later (source='ai')
   await pool.query(`
     CREATE TABLE IF NOT EXISTS deals (
