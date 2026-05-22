@@ -17,6 +17,7 @@ export function buildServer() {
   fastify.register(cors, {
     origin: config.corsOrigin,
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
 
   fastify.register(fcookie)
