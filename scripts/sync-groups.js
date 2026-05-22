@@ -28,20 +28,12 @@ async function wassengerGet(path) {
   return res.json()
 }
 
-async function upsertGroup(client, g) {
-  await client.query(
-    `INSERT INTO groups (wid, name, device_id, last_synced_at, total_participants, is_archive, created_at, last_message_at, wassenger_id)
-     VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8)
-     ON CONFLICT (wid) DO UPDATE SET
-       name                = EXCLUDED.name,
-       device_id           = EXCLUDED.device_id,
-       last_synced_at      = NOW(),
-       total_participants  = EXCLUDED.total_participants,
-       is_archive          = EXCLUDED.is_archive,
-       created_at          = COALESCE(groups.created_at, EXCLUDED.created_at),
-       last_message_at     = EXCLUDED.last_message_at,
-       wassenger_id        = EXCLUDED.wassenger_id`,
-    [
+async function bulkUpsertGroups(groups) {
+  if (groups.length === 0) return
+  const params = []
+  const valueSets = groups.map((g, i) => {
+    const b = i * 8
+    params.push(
       g.wid,
       g.name ?? null,
       DEVICE,
@@ -50,7 +42,22 @@ async function upsertGroup(client, g) {
       g.createdAt ? new Date(g.createdAt) : null,
       g.lastMessageAt ? new Date(g.lastMessageAt) : null,
       g.id ?? null,
-    ],
+    )
+    return `($${b+1},$${b+2},$${b+3},NOW(),$${b+4},$${b+5},$${b+6},$${b+7},$${b+8})`
+  })
+  await pool.query(
+    `INSERT INTO groups (wid,name,device_id,last_synced_at,total_participants,is_archive,created_at,last_message_at,wassenger_id)
+     VALUES ${valueSets.join(',')}
+     ON CONFLICT (wid) DO UPDATE SET
+       name               = EXCLUDED.name,
+       device_id          = EXCLUDED.device_id,
+       last_synced_at     = NOW(),
+       total_participants = EXCLUDED.total_participants,
+       is_archive         = EXCLUDED.is_archive,
+       created_at         = COALESCE(groups.created_at, EXCLUDED.created_at),
+       last_message_at    = EXCLUDED.last_message_at,
+       wassenger_id       = EXCLUDED.wassenger_id`,
+    params,
   )
 }
 
@@ -75,7 +82,7 @@ async function upsertMember(client, groupWid, phone, isAdmin) {
   )
 }
 
-async function syncGroup(group) {
+async function syncParticipants(group) {
   const participants = await wassengerGet(
     `/chat/${DEVICE}/chats/${encodeURIComponent(group.wid)}/participants`,
   )
@@ -83,8 +90,6 @@ async function syncGroup(group) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    await upsertGroup(client, group)
-
     let count = 0
     for (const p of participants) {
       if (!p.phone) continue
@@ -92,9 +97,8 @@ async function syncGroup(group) {
       await upsertMember(client, group.wid, p.phone, p.isAdmin || p.isSuperAdmin)
       count++
     }
-
     await client.query('COMMIT')
-    console.log(`  ✓ ${count} members`)
+    console.log(`  ✓ ${group.name}: ${count} members`)
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {})
     throw err
@@ -107,16 +111,18 @@ async function main() {
   console.log('Fetching group list...')
   const groups = await wassengerGet(`/devices/${DEVICE}/groups`)
   const onlyGroups = groups.filter(g => g.kind === 'group')
-  console.log(`Found ${onlyGroups.length} group(s)\n`)
+  console.log(`Found ${onlyGroups.length} group(s)`)
+
+  await bulkUpsertGroups(onlyGroups)
+  console.log(`Upserted ${onlyGroups.length} groups\n`)
 
   let ok = 0, failed = 0
   for (const group of onlyGroups) {
-    console.log(`Syncing: ${group.name} (${group.wid})`)
     try {
-      await syncGroup(group)
+      await syncParticipants(group)
       ok++
     } catch (err) {
-      console.error(`  ✗ ${err.message}`)
+      console.error(`  ✗ ${group.name}: ${err.message}`)
       failed++
     }
   }

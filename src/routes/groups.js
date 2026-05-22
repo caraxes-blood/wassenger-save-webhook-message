@@ -12,20 +12,12 @@ async function wassengerGet(path) {
   return res.json()
 }
 
-async function upsertGroup(client, g) {
-  await client.query(
-    `INSERT INTO groups (wid, name, device_id, last_synced_at, total_participants, is_archive, created_at, last_message_at, wassenger_id)
-     VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8)
-     ON CONFLICT (wid) DO UPDATE SET
-       name                = EXCLUDED.name,
-       device_id           = EXCLUDED.device_id,
-       last_synced_at      = NOW(),
-       total_participants  = EXCLUDED.total_participants,
-       is_archive          = EXCLUDED.is_archive,
-       created_at          = COALESCE(groups.created_at, EXCLUDED.created_at),
-       last_message_at     = EXCLUDED.last_message_at,
-       wassenger_id        = EXCLUDED.wassenger_id`,
-    [
+async function bulkUpsertGroups(groups) {
+  if (groups.length === 0) return
+  const params = []
+  const valueSets = groups.map((g, i) => {
+    const b = i * 8
+    params.push(
       g.wid,
       g.name ?? null,
       g.device ?? config.wassengerDeviceId,
@@ -34,7 +26,22 @@ async function upsertGroup(client, g) {
       g.createdAt ? new Date(g.createdAt) : null,
       g.lastMessageAt ? new Date(g.lastMessageAt) : null,
       g.id ?? null,
-    ],
+    )
+    return `($${b+1},$${b+2},$${b+3},NOW(),$${b+4},$${b+5},$${b+6},$${b+7},$${b+8})`
+  })
+  await pool.query(
+    `INSERT INTO groups (wid,name,device_id,last_synced_at,total_participants,is_archive,created_at,last_message_at,wassenger_id)
+     VALUES ${valueSets.join(',')}
+     ON CONFLICT (wid) DO UPDATE SET
+       name               = EXCLUDED.name,
+       device_id          = EXCLUDED.device_id,
+       last_synced_at     = NOW(),
+       total_participants = EXCLUDED.total_participants,
+       is_archive         = EXCLUDED.is_archive,
+       created_at         = COALESCE(groups.created_at, EXCLUDED.created_at),
+       last_message_at    = EXCLUDED.last_message_at,
+       wassenger_id       = EXCLUDED.wassenger_id`,
+    params,
   )
 }
 
@@ -110,16 +117,8 @@ export async function groupsRoute(fastify) {
     let ok = 0, failed = 0
     const errors = []
 
-    for (const g of groups) {
-      try {
-        await upsertGroup(pool, g)
-        ok++
-      } catch (err) {
-        failed++
-        errors.push({ wid: g.wid ?? g.id, error: err.message })
-      }
-    }
+    await bulkUpsertGroups(groups)
 
-    return reply.send({ synced: ok, failed, errors })
+    return reply.send({ synced: groups.length, failed: 0, errors: [] })
   })
 }
