@@ -66,6 +66,14 @@ export async function runMigrations(pool) {
       last_synced_at TIMESTAMPTZ
     );
 
+    ALTER TABLE groups
+      ADD COLUMN IF NOT EXISTS active              BOOLEAN     NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS total_participants  INT,
+      ADD COLUMN IF NOT EXISTS is_archive          BOOLEAN     NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS created_at          TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS last_message_at     TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS wassenger_id        TEXT;
+
     CREATE TABLE IF NOT EXISTS users (
       phone      TEXT        PRIMARY KEY,
       name       TEXT,

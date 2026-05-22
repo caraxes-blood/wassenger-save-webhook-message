@@ -49,10 +49,4 @@ export async function usersRoute(fastify) {
     return reply.send({ data: rows, total, page, totalPages, hasNext: page < totalPages, hasPrev: page > 1 })
   })
 
-  fastify.get('/groups', async (_request, reply) => {
-    const { rows } = await pool.query(
-      `SELECT wid, name FROM groups ORDER BY name ASC NULLS LAST`,
-    )
-    return reply.send({ data: rows })
-  })
 }

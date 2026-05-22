@@ -14,4 +14,6 @@ export const config = {
   adminPassword: required('ADMIN_PASSWORD'),
   corsOrigin: required('CORS_ORIGIN'),
   nodeEnv: process.env.NODE_ENV ?? 'development',
+  wassengerApiToken: process.env.WASSENGER_API_TOKEN ?? '',
+  wassengerDeviceId: process.env.WASSENGER_DEVICE_ID ?? '',
 }

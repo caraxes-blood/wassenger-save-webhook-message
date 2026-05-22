@@ -18,6 +18,11 @@ vi.mock('../src/config.js', () => ({
   }
 }))
 
+vi.mock('../src/cache/activeGroups.js', () => ({
+  activeGroups: new Set(['conv_1']),
+  initActiveGroupsCache: vi.fn(),
+}))
+
 async function buildApp() {
   const app = Fastify()
   const { webhookRoute } = await import('../src/routes/webhook.js')
@@ -64,6 +69,48 @@ describe('POST /webhook', () => {
       url: '/webhook',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ event: 'message:out:new', data: {} }),
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('returns 200 but does NOT enqueue messages from inactive groups', async () => {
+    const app = await buildApp()
+    const payload = {
+      event: 'message:in:new',
+      data: {
+        id: 'msg_2',
+        fromNumber: '+1234567890',
+        chat: { id: 'inactive_group' },
+        timestamp: 1778584656,
+      },
+    }
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body)).toEqual({ ok: true })
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('returns 200 but does NOT enqueue messages with no chat id', async () => {
+    const app = await buildApp()
+    const payload = {
+      event: 'message:in:new',
+      data: { id: 'msg_3', fromNumber: '+1234567890', timestamp: 1778584656 },
+    }
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
     })
 
     expect(response.statusCode).toBe(200)

@@ -9,6 +9,7 @@ import { authRoute } from './routes/auth.js'
 import { messagesRoute } from './routes/messages.js'
 import { cleanedMessagesRoute } from './routes/cleanedMessages.js'
 import { usersRoute } from './routes/users.js'
+import { groupsRoute } from './routes/groups.js'
 
 export function buildServer() {
   const fastify = Fastify({ logger: true, trustProxy: true })
@@ -41,6 +42,7 @@ export function buildServer() {
     instance.register(messagesRoute)
     instance.register(cleanedMessagesRoute)
     instance.register(usersRoute)
+    instance.register(groupsRoute)
   })
 
   return fastify

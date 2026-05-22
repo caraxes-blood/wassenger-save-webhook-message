@@ -28,15 +28,29 @@ async function wassengerGet(path) {
   return res.json()
 }
 
-async function upsertGroup(client, wid, name) {
+async function upsertGroup(client, g) {
   await client.query(
-    `INSERT INTO groups (wid, name, device_id, last_synced_at)
-     VALUES ($1, $2, $3, NOW())
+    `INSERT INTO groups (wid, name, device_id, last_synced_at, total_participants, is_archive, created_at, last_message_at, wassenger_id)
+     VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8)
      ON CONFLICT (wid) DO UPDATE SET
-       name           = EXCLUDED.name,
-       device_id      = EXCLUDED.device_id,
-       last_synced_at = NOW()`,
-    [wid, name, DEVICE],
+       name                = EXCLUDED.name,
+       device_id           = EXCLUDED.device_id,
+       last_synced_at      = NOW(),
+       total_participants  = EXCLUDED.total_participants,
+       is_archive          = EXCLUDED.is_archive,
+       created_at          = COALESCE(groups.created_at, EXCLUDED.created_at),
+       last_message_at     = EXCLUDED.last_message_at,
+       wassenger_id        = EXCLUDED.wassenger_id`,
+    [
+      g.wid,
+      g.name ?? null,
+      DEVICE,
+      g.totalParticipants ?? null,
+      g.isArchive ?? false,
+      g.createdAt ? new Date(g.createdAt) : null,
+      g.lastMessageAt ? new Date(g.lastMessageAt) : null,
+      g.id ?? null,
+    ],
   )
 }
 
@@ -69,7 +83,7 @@ async function syncGroup(group) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    await upsertGroup(client, group.wid, group.name)
+    await upsertGroup(client, group)
 
     let count = 0
     for (const p of participants) {
