@@ -61,52 +61,6 @@ async function bulkUpsertGroups(groups) {
   )
 }
 
-async function upsertUser(client, phone, name, wid) {
-  await client.query(
-    `INSERT INTO users (phone, name, wid)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (phone) DO UPDATE SET
-       name       = COALESCE(EXCLUDED.name, users.name),
-       wid        = COALESCE(EXCLUDED.wid,  users.wid),
-       updated_at = NOW()`,
-    [phone, name ?? null, wid ?? null],
-  )
-}
-
-async function upsertMember(client, groupWid, phone, isAdmin) {
-  await client.query(
-    `INSERT INTO group_members (group_wid, user_phone, is_admin)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (group_wid, user_phone) DO UPDATE SET is_admin = EXCLUDED.is_admin`,
-    [groupWid, phone, isAdmin],
-  )
-}
-
-async function syncParticipants(group) {
-  const participants = await wassengerGet(
-    `/chat/${DEVICE}/chats/${encodeURIComponent(group.wid)}/participants`,
-  )
-
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
-    let count = 0
-    for (const p of participants) {
-      if (!p.phone) continue
-      await upsertUser(client, p.phone, p.name, p.id)
-      await upsertMember(client, group.wid, p.phone, p.isAdmin || p.isSuperAdmin)
-      count++
-    }
-    await client.query('COMMIT')
-    console.log(`  ✓ ${group.name}: ${count} members`)
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {})
-    throw err
-  } finally {
-    client.release()
-  }
-}
-
 async function main() {
   console.log('Fetching group list...')
   const groups = await wassengerGet(`/devices/${DEVICE}/groups`)
@@ -114,21 +68,9 @@ async function main() {
   console.log(`Found ${onlyGroups.length} group(s)`)
 
   await bulkUpsertGroups(onlyGroups)
-  console.log(`Upserted ${onlyGroups.length} groups\n`)
-
-  let ok = 0, failed = 0
-  for (const group of onlyGroups) {
-    try {
-      await syncParticipants(group)
-      ok++
-    } catch (err) {
-      console.error(`  ✗ ${group.name}: ${err.message}`)
-      failed++
-    }
-  }
 
   await pool.end()
-  console.log(`\nDone — ${ok} synced, ${failed} failed`)
+  console.log(`Done — ${onlyGroups.length} groups upserted`)
 }
 
 main().catch(err => {
