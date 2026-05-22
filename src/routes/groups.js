@@ -84,10 +84,12 @@ export async function groupsRoute(fastify) {
     return reply.send({ data: rows, total, page, totalPages, hasNext: page < totalPages, hasPrev: page > 1 })
   })
 
-  fastify.patch('/groups/:wid', async (request, reply) => {
-    const { wid } = request.params
-    const { active } = request.body ?? {}
+  fastify.patch('/groups', async (request, reply) => {
+    const { wid, active } = request.body ?? {}
 
+    if (typeof wid !== 'string' || !wid) {
+      return reply.code(400).send({ error: '`wid` must be a non-empty string' })
+    }
     if (typeof active !== 'boolean') {
       return reply.code(400).send({ error: '`active` must be a boolean' })
     }
