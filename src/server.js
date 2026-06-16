@@ -27,6 +27,7 @@ export function buildServer() {
     cookie: { cookieName: 'token', signed: false },
   })
 
+  fastify.get('/', async () => ({ name: 'wassenger-webhook-server', status: 'ok' }))
   fastify.get('/health', async () => ({ ok: true }))
   fastify.register(webhookRoute)
   fastify.register(authRoute)
