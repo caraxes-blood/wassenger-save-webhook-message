@@ -39,16 +39,22 @@ const COUNT_SQL = `
   SELECT COUNT(*) AS total FROM messages WHERE payload IS NOT NULL
 `;
 
-const UPDATE_SQL = `
-  UPDATE messages
-  SET payload      = NULL,
-      type         = $1,
-      group_name   = $2,
-      message_body = $3,
-      caption      = $4,
-      image_url    = $5
-  WHERE message_id = $6
-`;
+function buildBatchUpdate(valid) {
+  const params = [];
+  const placeholders = valid.map(({ message_id, cols }, i) => {
+    const b = i * 6;
+    params.push(cols.type, cols.group_name, cols.message_body, cols.caption, cols.image_url, message_id);
+    return `($${b+1}::text,$${b+2}::text,$${b+3}::text,$${b+4}::text,$${b+5}::text,$${b+6}::text)`;
+  }).join(',');
+  return {
+    sql: `UPDATE messages AS m
+          SET payload = NULL, type = v.type, group_name = v.group_name,
+              message_body = v.message_body, caption = v.caption, image_url = v.image_url
+          FROM (VALUES ${placeholders}) AS v(type,group_name,message_body,caption,image_url,message_id)
+          WHERE m.message_id = v.message_id`,
+    params,
+  };
+}
 
 async function main() {
   // Check if payload column exists at all
@@ -80,71 +86,56 @@ async function main() {
 
   let processed = 0;
   let errors = 0;
-  const effectiveBatch = Math.min(
-    BATCH_SIZE,
-    maxRows === Infinity ? BATCH_SIZE : maxRows,
-  );
+  const batchLimit = maxRows === Infinity ? BATCH_SIZE : Math.min(BATCH_SIZE, maxRows);
 
   while (processed < (maxRows === Infinity ? Infinity : maxRows)) {
-    const batchLimit = Math.min(
-      effectiveBatch,
-      maxRows === Infinity ? effectiveBatch : maxRows - processed,
-    );
-    const { rows } = await pool.query(FETCH_SQL, [batchLimit]);
+    const fetchLimit = maxRows === Infinity ? batchLimit : Math.min(batchLimit, maxRows - processed);
+    const { rows } = await pool.query(FETCH_SQL, [fetchLimit]);
     if (rows.length === 0) break;
 
-    const client = await pool.connect();
-    try {
-      if (!dryRun) await client.query("BEGIN");
-
-      for (const row of rows) {
-        try {
-          // payload may be the raw Wassenger envelope {event, data} or already-trimmed {data}
-          const data = row.payload?.data;
-          if (!data) {
-            console.error(`  Skipping ${row.message_id}: payload.data missing`);
-            errors++;
-            continue;
-          }
-
-          const cols = extractColumns(data);
-
-          if (dryRun) {
-            console.log(
-              `  [DRY] ${row.message_id}: type=${cols.type} group=${cols.group_name} body=${cols.message_body?.slice(0, 40) ?? null} caption=${cols.caption} image_url=${cols.image_url}`,
-            );
-          } else {
-            await client.query("SAVEPOINT sp");
-            await client.query(UPDATE_SQL, [
-              cols.type,
-              cols.group_name,
-              cols.message_body,
-              cols.caption,
-              cols.image_url,
-              row.message_id,
-            ]);
-            await client.query("RELEASE SAVEPOINT sp");
-          }
-
-          processed++;
-        } catch (err) {
-          if (!dryRun) {
-            try { await client.query("ROLLBACK TO SAVEPOINT sp"); } catch {}
-          }
-          console.error(`  Error on ${row.message_id}: ${err.message}`);
-          errors++;
-        }
+    // Extract columns in JS; collect valid rows and skip bad ones without a DB round-trip
+    const valid = [];
+    for (const row of rows) {
+      // payload may be the raw Wassenger envelope {event, data} or already-trimmed {data}
+      const data = row.payload?.data;
+      if (!data) {
+        console.error(`  Skipping ${row.message_id}: payload.data missing`);
+        errors++;
+        continue;
       }
-
-      if (!dryRun) await client.query("COMMIT");
-    } catch (err) {
       try {
-        await client.query("ROLLBACK");
-      } catch {}
-      console.error(`Batch error: ${err.message}`);
-      errors++;
-    } finally {
-      client.release();
+        valid.push({ message_id: row.message_id, cols: extractColumns(data) });
+      } catch (err) {
+        console.error(`  Error extracting ${row.message_id}: ${err.message}`);
+        errors++;
+      }
+    }
+
+    if (dryRun) {
+      for (const { message_id, cols } of valid) {
+        console.log(
+          `  [DRY] ${message_id}: type=${cols.type} group=${cols.group_name} body=${cols.message_body?.slice(0, 40) ?? null} caption=${cols.caption} image_url=${cols.image_url}`,
+        );
+      }
+      processed += valid.length;
+      break;
+    }
+
+    if (valid.length > 0) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const { sql, params } = buildBatchUpdate(valid);
+        await client.query(sql, params);
+        await client.query("COMMIT");
+        processed += valid.length;
+      } catch (err) {
+        try { await client.query("ROLLBACK"); } catch {}
+        console.error(`Batch error: ${err.message}`);
+        errors += valid.length;
+      } finally {
+        client.release();
+      }
     }
 
     const pct =
@@ -154,8 +145,6 @@ async function main() {
     process.stdout.write(
       `\r  ${processed} processed${maxRows !== Infinity ? ` / ${maxRows} (${pct}%)` : ""}  `,
     );
-
-    if (dryRun) break;
   }
 
   console.log("\n\nDone.");

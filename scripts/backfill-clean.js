@@ -124,23 +124,26 @@ async function main() {
     const { rows } = await pool.query(FETCH_SQL, [BATCH_SIZE])
     if (rows.length === 0) break
 
-    for (const row of rows) {
+    const settled = await Promise.allSettled(rows.map(async (row) => {
       const client = await pool.connect()
       try {
-        const result = await processRow(client, row)
-        if (result === 'empty')        counts.empty++
-        else if (result === 'already_done') counts.already_done++
-        else if (result === 'SKIP')    counts.system++
-        else                           counts.deals++
+        return await processRow(client, row)
       } catch (err) {
         try { await client.query('ROLLBACK') } catch {}
-        // Stamp processed_at so this row doesn't block the loop
         try { await pool.query(STAMP_SQL, [row.message_id]) } catch {}
         console.error(`  Error on ${row.message_id}: ${err.message}`)
-        counts.errors++
+        throw err
       } finally {
         client.release()
       }
+    }))
+
+    for (const outcome of settled) {
+      if (outcome.status === 'rejected') { counts.errors++; }
+      else if (outcome.value === 'empty')        counts.empty++
+      else if (outcome.value === 'already_done') counts.already_done++
+      else if (outcome.value === 'SKIP')         counts.system++
+      else                                       counts.deals++
       processed++
     }
 
