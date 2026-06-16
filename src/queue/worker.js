@@ -1,9 +1,11 @@
 import { cleanText, isSystem, classify, extractPrice, extractRef, extractCondition } from '../cleaning/pipeline.js'
 import { insertCleanedMessage, insertDeal, markProcessed } from '../db/cleaning.js'
+import { extractColumns } from '../payload.js'
 
 const INSERT_MESSAGES_SQL = `
-  INSERT INTO messages (message_id, sender, conversation_id, timestamp, payload, is_relevant, skip_reason)
-  VALUES ($1, $2, $3, $4, $5, $6, $7)
+  INSERT INTO messages (message_id, sender, conversation_id, timestamp, is_relevant, skip_reason,
+                        type, group_name, message_body, caption, image_url)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
   ON CONFLICT (message_id) DO NOTHING
 `
 
@@ -16,25 +18,29 @@ export function classifyRelevance(data) {
     return { is_relevant: false, skip_reason: 'notification' }
   if (data.meta?.isBizNotification)
     return { is_relevant: false, skip_reason: 'biz_notification' }
-  if (!data.body?.trim())
+  if (data.type === 'text' && !data.body?.trim())
     return { is_relevant: false, skip_reason: 'empty_body' }
+  if (data.type === 'image' && !data.media?.caption?.trim())
+    return { is_relevant: false, skip_reason: 'empty_caption' }
   return { is_relevant: true, skip_reason: null }
 }
 
 export async function processMessage(job, pool) {
-  const { data, rawPayload } = job.data
+  const { data } = job.data
   const { is_relevant, skip_reason } = classifyRelevance(data)
   const sender         = data.fromNumber ?? data.from
   const conversationId = data.chat?.id ?? null
   const timestamp      = new Date(data.timestamp * 1000)
+  const cols           = extractColumns(data)
 
   const client = await pool.connect()
   try {
-    // Step 1: persist raw message (auto-commit per query)
+    // Step 1: persist trimmed message (auto-commit per query)
     try {
       await client.query(INSERT_MESSAGES_SQL, [
         data.id, sender, conversationId, timestamp,
-        JSON.stringify(rawPayload), is_relevant, skip_reason,
+        is_relevant, skip_reason,
+        cols.type, cols.group_name, cols.message_body, cols.caption, cols.image_url,
       ])
     } catch (err) {
       if (err.code === '23505') return

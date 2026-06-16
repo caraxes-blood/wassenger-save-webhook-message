@@ -7,7 +7,6 @@ export async function runMigrations(pool) {
       sender          TEXT        NOT NULL,
       conversation_id TEXT,
       timestamp       TIMESTAMPTZ NOT NULL,
-      payload         JSONB       NOT NULL,
       created_at      TIMESTAMPTZ DEFAULT NOW(),
       is_relevant     BOOLEAN     NOT NULL DEFAULT true,
       skip_reason     TEXT,
@@ -15,7 +14,8 @@ export async function runMigrations(pool) {
       type            TEXT,
       group_name      TEXT,
       message_body    TEXT,
-      caption         TEXT
+      caption         TEXT,
+      image_url       TEXT
     );
 
     ALTER TABLE messages
@@ -25,12 +25,24 @@ export async function runMigrations(pool) {
       ADD COLUMN IF NOT EXISTS type          TEXT,
       ADD COLUMN IF NOT EXISTS group_name    TEXT,
       ADD COLUMN IF NOT EXISTS message_body  TEXT,
-      ADD COLUMN IF NOT EXISTS caption       TEXT;
+      ADD COLUMN IF NOT EXISTS caption       TEXT,
+      ADD COLUMN IF NOT EXISTS image_url     TEXT;
+
+    -- make payload nullable so the worker can INSERT without it while the
+    -- backfill script (scripts/backfill-trim.js) is still pending
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'messages' AND column_name = 'payload'
+      ) THEN
+        ALTER TABLE messages ALTER COLUMN payload DROP NOT NULL;
+      END IF;
+    END $$;
 
     CREATE INDEX IF NOT EXISTS idx_messages_sender          ON messages(sender);
     CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp       ON messages(timestamp);
-    CREATE INDEX IF NOT EXISTS idx_messages_payload_gin     ON messages USING GIN(payload);
     CREATE INDEX IF NOT EXISTS idx_messages_work_queue
       ON messages (is_relevant, processed_at)
       WHERE is_relevant = true AND processed_at IS NULL;
