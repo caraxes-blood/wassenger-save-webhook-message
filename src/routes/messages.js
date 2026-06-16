@@ -9,10 +9,9 @@ export async function messagesRoute(fastify) {
 
     const [{ rows }, { rows: countRows }] = await Promise.all([
       pool.query(
-        `SELECT id, message_id, sender, conversation_id, timestamp, payload, created_at,
-                is_relevant, skip_reason,
-                payload->'data'->'meta'->>'notifyName' AS sender_name,
-                payload->'data'->'chat'->>'name'       AS chat_name
+        `SELECT id, message_id, sender, conversation_id, timestamp, created_at,
+                is_relevant, skip_reason, processed_at, type, group_name, message_body,
+                caption, image_url
          FROM messages
          ORDER BY created_at DESC
          LIMIT $1 OFFSET $2`,
