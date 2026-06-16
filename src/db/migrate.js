@@ -11,13 +11,21 @@ export async function runMigrations(pool) {
       created_at      TIMESTAMPTZ DEFAULT NOW(),
       is_relevant     BOOLEAN     NOT NULL DEFAULT true,
       skip_reason     TEXT,
-      processed_at    TIMESTAMPTZ
+      processed_at    TIMESTAMPTZ,
+      type            TEXT,
+      group_name      TEXT,
+      message_body    TEXT,
+      caption         TEXT
     );
 
     ALTER TABLE messages
-      ADD COLUMN IF NOT EXISTS is_relevant  BOOLEAN NOT NULL DEFAULT true,
-      ADD COLUMN IF NOT EXISTS skip_reason  TEXT,
-      ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+      ADD COLUMN IF NOT EXISTS is_relevant   BOOLEAN NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS skip_reason   TEXT,
+      ADD COLUMN IF NOT EXISTS processed_at  TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS type          TEXT,
+      ADD COLUMN IF NOT EXISTS group_name    TEXT,
+      ADD COLUMN IF NOT EXISTS message_body  TEXT,
+      ADD COLUMN IF NOT EXISTS caption       TEXT;
 
     CREATE INDEX IF NOT EXISTS idx_messages_sender          ON messages(sender);
     CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
