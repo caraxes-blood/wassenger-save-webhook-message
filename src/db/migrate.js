@@ -43,8 +43,12 @@ export async function runMigrations(pool) {
     CREATE INDEX IF NOT EXISTS idx_messages_sender          ON messages(sender);
     CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp       ON messages(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_messages_created_at      ON messages(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_messages_work_queue
       ON messages (is_relevant, processed_at)
+      WHERE is_relevant = true AND processed_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_messages_work_queue_ts
+      ON messages (timestamp)
       WHERE is_relevant = true AND processed_at IS NULL;
   `)
 
